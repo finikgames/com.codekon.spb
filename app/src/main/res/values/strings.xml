@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Питер Live</string>
+    <string name="target_url">https://mos77.ru/spb/</string>
+    <string name="error_no_connection_title">Нет подключения к интернету</string>
+    <string name="error_no_connection_message">Пожалуйста, проверьте подключение к Wi-Fi или мобильной сети и попробуйте снова.</string>
+    <string name="error_retry_button">Повторить попытку</string>
+    <string name="exit_confirmation">Нажмите назад ещё раз для выхода</string>
+    <string name="file_chooser_title">Выберите файл для загрузки</string>
+</resources>
