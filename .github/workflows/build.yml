@@ -1,0 +1,96 @@
+name: Build Piter Live RuStore Release
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Sign APK / AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.5
+
+      - name: Verify Project Structure
+        run: |
+          echo "=== Root directory ==="
+          ls -la
+          echo "=== App module directory ==="
+          ls -la app || echo "WARNING: app folder not found!"
+
+      - name: Prepare Release Keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Using base64 keystore from GitHub Secret KEYSTORE_BASE64"
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          elif [ -f release.keystore ]; then
+            echo "Using repository release.keystore"
+          else
+            echo "Generating production release.keystore with keytool..."
+            keytool -genkeypair -v -keystore release.keystore \
+              -alias "${{ secrets.KEY_ALIAS || 'codekon' }}" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "${{ secrets.KEYSTORE_PASSWORD || 'spb2024' }}" \
+              -keypass "${{ secrets.KEY_PASSWORD || 'spb2024' }}" \
+              -dname "CN=Питер Live, OU=App, O=Codekon, C=RU"
+          fi
+
+      - name: Build Release APK
+        env:
+          KEYSTORE_FILE: ../release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'spb2024' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'codekon' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'spb2024' }}
+        run: gradle :app:assembleRelease --stacktrace
+
+      - name: Build Release AAB (App Bundle)
+        env:
+          KEYSTORE_FILE: ../release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'spb2024' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'codekon' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'spb2024' }}
+        run: gradle :app:bundleRelease --stacktrace
+
+      - name: Prepare Artifacts
+        run: |
+          mkdir -p output_artifacts
+          cp app/build/outputs/apk/release/*.apk output_artifacts/Piter-Live-release.apk
+          cp app/build/outputs/bundle/release/*.aab output_artifacts/Piter-Live-release.aab
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Piter-Live-Release-APK
+          path: output_artifacts/Piter-Live-release.apk
+          retention-days: 30
+
+      - name: Upload Release AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Piter-Live-Release-AAB
+          path: output_artifacts/Piter-Live-release.aab
+          retention-days: 30
+
+      - name: Upload Keystore Backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: Keystore-Backup
+          path: release.keystore
+          retention-days: 90
